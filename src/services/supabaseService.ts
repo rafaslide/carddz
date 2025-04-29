@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Product, 
@@ -422,16 +423,26 @@ export const getOrdersByRestaurantId = async (restaurantId: string): Promise<Ord
     const items = orderItemsData
       .filter(item => item.order_id === order.id)
       .map(item => {
-        const product = item.products || { 
-          id: item.product_id || '', 
-          name: item.product_name,
-          price: item.unit_price,
-          description: '',
-          image: '',
-          categoryId: '',
-          restaurantId: '',
-          isAvailable: true,
-        };
+        // Use a type for the database product to properly handle snake_case properties
+        type DbProduct = Database['public']['Tables']['products']['Row'];
+        
+        // Create a default product if products is null
+        let dbProduct: Partial<DbProduct> | null = null;
+        
+        if (item.products) {
+          dbProduct = item.products as Partial<DbProduct>;
+        } else {
+          dbProduct = { 
+            id: item.product_id || '', 
+            name: item.product_name,
+            price: item.unit_price,
+            description: '',
+            image: '',
+            category_id: '',
+            restaurant_id: '',
+            is_available: true,
+          };
+        }
         
         // Convert customizations from JSON to the expected format
         let formattedCustomizations: { optionId: string; selectedItems: string[] }[] = [];
@@ -446,18 +457,19 @@ export const getOrdersByRestaurantId = async (restaurantId: string): Promise<Ord
           }
         }
         
+        // Map the database product to our frontend Product model
         return {
           product: {
-            id: product.id,
-            name: product.name,
-            description: typeof product.description === 'string' ? product.description : '',
-            price: typeof product.price === 'number' ? product.price : 0,
-            image: typeof product.image === 'string' ? product.image : '',
-            categoryId: product.category_id || '',
-            restaurantId: product.restaurant_id || '',
-            isPromotion: Boolean(product.is_promotion),
-            promotionPrice: product.promotion_price || 0,
-            isAvailable: product.is_available !== false,
+            id: dbProduct.id || '',
+            name: dbProduct.name || '',
+            description: typeof dbProduct.description === 'string' ? dbProduct.description : '',
+            price: typeof dbProduct.price === 'number' ? dbProduct.price : 0,
+            image: typeof dbProduct.image === 'string' ? dbProduct.image : '',
+            categoryId: dbProduct.category_id || '',
+            restaurantId: dbProduct.restaurant_id || '',
+            isPromotion: Boolean(dbProduct.is_promotion),
+            promotionPrice: dbProduct.promotion_price || 0,
+            isAvailable: dbProduct.is_available !== false,
             customizationOptions: [],
           },
           quantity: item.quantity,
