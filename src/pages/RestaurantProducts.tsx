@@ -3,56 +3,221 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockDataService } from '@/data/mockData';
 import { Category, Product } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
-import { Plus, Edit, Trash } from 'lucide-react';
+import { Plus, Edit, Trash, ImagePlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
+import ProductFormDialog from '@/components/ProductFormDialog';
+import CategoryFormDialog from '@/components/CategoryFormDialog';
+import CustomizationDialog from '@/components/CustomizationDialog';
+import * as supabaseService from '@/services/supabaseService';
 
 const RestaurantProducts = () => {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
+  const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
+  const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const loadData = async () => {
-      if (!user?.restaurantId) return;
+      if (!profile?.restaurantId) return;
 
       try {
         setLoading(true);
         // Load categories
-        const categoriesData = await mockDataService.getCategories(user.restaurantId);
+        const categoriesData = await supabaseService.getCategoriesByRestaurantId(profile.restaurantId);
         setCategories(categoriesData);
         
         // Load products
-        const productsData = await mockDataService.getProducts(user.restaurantId);
+        const productsData = await supabaseService.getProductsByRestaurantId(profile.restaurantId);
         setProducts(productsData);
       } catch (error) {
         console.error('Failed to load data:', error);
+        toast({
+          title: 'Erro ao carregar dados',
+          description: 'Não foi possível carregar os produtos e categorias.',
+          variant: 'destructive',
+        });
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [user]);
+  }, [profile]);
 
   const handleAddProduct = () => {
-    // In a real app, this would open a form to add a new product
-    alert('Em uma aplicação real, aqui abriria um formulário para adicionar novo produto');
+    setSelectedProduct(null);
+    setIsProductFormOpen(true);
   };
 
-  const handleEditProduct = (productId: string) => {
-    // In a real app, this would open a form to edit the product
-    alert(`Em uma aplicação real, aqui abriria um formulário para editar o produto ${productId}`);
+  const handleEditProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setIsProductFormOpen(true);
   };
 
-  const handleDeleteProduct = (productId: string) => {
-    // In a real app, this would show a confirmation dialog and then delete the product
-    alert(`Em uma aplicação real, aqui mostraria uma confirmação para deletar o produto ${productId}`);
+  const handleDeleteProduct = async (productId: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este produto?')) return;
+    
+    try {
+      await supabaseService.deleteProduct(productId);
+      setProducts(products.filter(p => p.id !== productId));
+      toast({
+        title: 'Produto excluído',
+        description: 'O produto foi excluído com sucesso.',
+      });
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      toast({
+        title: 'Erro ao excluir produto',
+        description: 'Não foi possível excluir o produto.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddCategory = () => {
+    setSelectedCategory(null);
+    setIsCategoryFormOpen(true);
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setSelectedCategory(category);
+    setIsCategoryFormOpen(true);
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    // Check if category has products
+    const hasProducts = products.some(p => p.categoryId === categoryId);
+    
+    if (hasProducts) {
+      toast({
+        title: 'Não é possível excluir categoria',
+        description: 'Esta categoria possui produtos associados. Remova ou mova os produtos primeiro.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!window.confirm('Tem certeza que deseja excluir esta categoria?')) return;
+    
+    try {
+      await supabaseService.deleteCategory(categoryId);
+      setCategories(categories.filter(c => c.id !== categoryId));
+      toast({
+        title: 'Categoria excluída',
+        description: 'A categoria foi excluída com sucesso.',
+      });
+    } catch (error) {
+      console.error('Failed to delete category:', error);
+      toast({
+        title: 'Erro ao excluir categoria',
+        description: 'Não foi possível excluir a categoria.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleManageCustomizations = (product: Product) => {
+    setSelectedProduct(product);
+    setIsCustomizationOpen(true);
+  };
+
+  const handleProductSave = async (product: Product) => {
+    try {
+      if (product.id) {
+        // Update existing product
+        const updatedProduct = await supabaseService.updateProduct(product.id, product);
+        setProducts(products.map(p => (p.id === product.id ? { ...p, ...updatedProduct } : p)));
+        toast({
+          title: 'Produto atualizado',
+          description: 'O produto foi atualizado com sucesso.',
+        });
+      } else {
+        // Create new product
+        if (!profile?.restaurantId) {
+          throw new Error('ID do restaurante não encontrado');
+        }
+        
+        const newProduct = await supabaseService.createProduct({
+          ...product,
+          restaurantId: profile.restaurantId,
+        });
+        
+        setProducts([...products, newProduct]);
+        toast({
+          title: 'Produto criado',
+          description: 'O produto foi criado com sucesso.',
+        });
+      }
+      
+      setIsProductFormOpen(false);
+    } catch (error) {
+      console.error('Failed to save product:', error);
+      toast({
+        title: 'Erro ao salvar produto',
+        description: 'Não foi possível salvar o produto.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCategorySave = async (category: Category) => {
+    try {
+      if (category.id) {
+        // Update existing category
+        const updatedCategory = await supabaseService.updateCategory(category.id, category);
+        setCategories(categories.map(c => (c.id === category.id ? { ...c, ...updatedCategory } : c)));
+        toast({
+          title: 'Categoria atualizada',
+          description: 'A categoria foi atualizada com sucesso.',
+        });
+      } else {
+        // Create new category
+        if (!profile?.restaurantId) {
+          throw new Error('ID do restaurante não encontrado');
+        }
+        
+        const newCategory = await supabaseService.createCategory({
+          ...category,
+          restaurantId: profile.restaurantId,
+        });
+        
+        setCategories([...categories, newCategory]);
+        toast({
+          title: 'Categoria criada',
+          description: 'A categoria foi criada com sucesso.',
+        });
+      }
+      
+      setIsCategoryFormOpen(false);
+    } catch (error) {
+      console.error('Failed to save category:', error);
+      toast({
+        title: 'Erro ao salvar categoria',
+        description: 'Não foi possível salvar a categoria.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCustomizationsSave = (product: Product) => {
+    // Update product in the state with updated customizations
+    setProducts(products.map(p => (p.id === product.id ? product : p)));
+    setIsCustomizationOpen(false);
+    toast({
+      title: 'Personalizações atualizadas',
+      description: 'As opções de personalização foram atualizadas com sucesso.',
+    });
   };
 
   if (loading) {
@@ -71,18 +236,46 @@ const RestaurantProducts = () => {
     <Layout>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Gerenciar Produtos</h1>
-        <Button onClick={handleAddProduct}>
-          <Plus size={16} className="mr-1" />
-          Novo Produto
-        </Button>
+        <div className="space-x-2">
+          <Button onClick={handleAddCategory} variant="outline">
+            <Plus size={16} className="mr-1" />
+            Nova Categoria
+          </Button>
+          <Button onClick={handleAddProduct}>
+            <Plus size={16} className="mr-1" />
+            Novo Produto
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="all">
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 flex flex-wrap">
           <TabsTrigger value="all">Todos os Produtos</TabsTrigger>
           {categories.map(category => (
-            <TabsTrigger key={category.id} value={category.id}>
+            <TabsTrigger key={category.id} value={category.id} className="flex items-center">
               {category.name}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-2 h-5 w-5 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditCategory(category);
+                }}
+              >
+                <Edit size={12} />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 w-5 p-0 text-red-500"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteCategory(category.id);
+                }}
+              >
+                <Trash size={12} />
+              </Button>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -99,8 +292,9 @@ const RestaurantProducts = () => {
                   key={product.id} 
                   product={product} 
                   category={categories.find(c => c.id === product.categoryId)?.name || ''}
-                  onEdit={handleEditProduct}
-                  onDelete={handleDeleteProduct}
+                  onEdit={() => handleEditProduct(product)}
+                  onDelete={() => handleDeleteProduct(product.id)}
+                  onManageCustomizations={() => handleManageCustomizations(product)}
                 />
               ))
             )}
@@ -122,8 +316,9 @@ const RestaurantProducts = () => {
                       key={product.id} 
                       product={product} 
                       category={category.name}
-                      onEdit={handleEditProduct}
-                      onDelete={handleDeleteProduct}
+                      onEdit={() => handleEditProduct(product)}
+                      onDelete={() => handleDeleteProduct(product.id)}
+                      onManageCustomizations={() => handleManageCustomizations(product)}
                     />
                   ))
               )}
@@ -131,6 +326,35 @@ const RestaurantProducts = () => {
           </TabsContent>
         ))}
       </Tabs>
+
+      {/* Forms dialogs */}
+      {isProductFormOpen && (
+        <ProductFormDialog
+          open={isProductFormOpen}
+          onClose={() => setIsProductFormOpen(false)}
+          product={selectedProduct}
+          categories={categories}
+          onSave={handleProductSave}
+        />
+      )}
+
+      {isCategoryFormOpen && (
+        <CategoryFormDialog
+          open={isCategoryFormOpen}
+          onClose={() => setIsCategoryFormOpen(false)}
+          category={selectedCategory}
+          onSave={handleCategorySave}
+        />
+      )}
+
+      {isCustomizationOpen && selectedProduct && (
+        <CustomizationDialog
+          open={isCustomizationOpen}
+          onClose={() => setIsCustomizationOpen(false)}
+          product={selectedProduct}
+          onSave={handleCustomizationsSave}
+        />
+      )}
     </Layout>
   );
 };
@@ -138,19 +362,29 @@ const RestaurantProducts = () => {
 interface ProductCardProps {
   product: Product;
   category: string;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onManageCustomizations: () => void;
 }
 
-const ProductCard = ({ product, category, onEdit, onDelete }: ProductCardProps) => {
+const ProductCard = ({ product, category, onEdit, onDelete, onManageCustomizations }: ProductCardProps) => {
   return (
     <Card>
       <CardContent className="p-4">
         <div className="flex items-start">
           <div 
-            className="w-20 h-20 bg-center bg-cover rounded-md mr-4 flex-shrink-0" 
-            style={{ backgroundImage: `url(${product.image})` }}
-          />
+            className="w-20 h-20 bg-center bg-cover rounded-md mr-4 flex-shrink-0 relative"
+            style={{ 
+              backgroundImage: product.image ? `url(${product.image})` : 'none',
+              backgroundColor: !product.image ? '#f1f1f1' : 'transparent'
+            }}
+          >
+            {!product.image && (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                <ImagePlus size={24} />
+              </div>
+            )}
+          </div>
           <div className="flex-1">
             <div className="flex justify-between items-start">
               <div>
@@ -169,6 +403,12 @@ const ProductCard = ({ product, category, onEdit, onDelete }: ProductCardProps) 
                   )}
                 </div>
                 <p className="text-sm text-gray-600 mb-2">{product.description}</p>
+                
+                {product.customizationOptions && product.customizationOptions.length > 0 && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {product.customizationOptions.length} opções de personalização disponíveis
+                  </div>
+                )}
               </div>
               <div className="text-right">
                 {product.isPromotion && product.promotionPrice !== undefined && (
@@ -192,7 +432,14 @@ const ProductCard = ({ product, category, onEdit, onDelete }: ProductCardProps) 
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => onEdit(product.id)}
+                onClick={onManageCustomizations}
+              >
+                Personalizações
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={onEdit}
               >
                 <Edit size={14} className="mr-1" />
                 Editar
@@ -200,7 +447,7 @@ const ProductCard = ({ product, category, onEdit, onDelete }: ProductCardProps) 
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => onDelete(product.id)}
+                onClick={onDelete}
                 className="text-red-500 hover:text-red-600"
               >
                 <Trash size={14} className="mr-1" />

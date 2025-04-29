@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,16 +8,24 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [creatingDemoAccount, setCreatingDemoAccount] = useState(false);
   
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,11 +34,6 @@ const Login = () => {
     
     try {
       await login(email, password);
-      toast({
-        title: 'Login realizado com sucesso',
-        description: 'Você foi autenticado com sucesso.',
-      });
-      navigate('/');
     } catch (err) {
       setError('Email ou senha inválidos. Por favor, tente novamente.');
       console.error(err);
@@ -41,27 +44,68 @@ const Login = () => {
 
   const handleDemoLogin = async (role: string) => {
     setIsLoading(true);
+    setCreatingDemoAccount(true);
     
     try {
+      let userEmail = '';
+      let userPassword = 'password';
+      
       if (role === 'admin') {
-        await login('admin@carddz.com', 'password');
+        userEmail = 'admin@carddz.com';
       } else if (role === 'restaurant') {
-        await login('restaurant@carddz.com', 'password');
+        userEmail = 'restaurant@carddz.com';
       } else {
-        await login('customer@carddz.com', 'password');
+        userEmail = 'customer@carddz.com';
       }
       
-      toast({
-        title: 'Login realizado com sucesso',
-        description: 'Você foi autenticado com sucesso como ' + role,
-      });
-      
-      navigate('/');
-    } catch (err) {
-      setError('Erro ao fazer login. Por favor, tente novamente.');
-      console.error(err);
+      // Reset password for demo accounts
+      try {
+        // First, check if password needs to be updated
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: userEmail, 
+          password: userPassword
+        });
+        
+        if (authError) {
+          // If login fails, try to create a new user
+          const { data: userData, error: signupError } = await supabase.auth.signUp({
+            email: userEmail,
+            password: userPassword,
+            options: {
+              data: {
+                name: role === 'admin' ? 'Admin User' : role === 'restaurant' ? 'Restaurant Owner' : 'Customer',
+                role: role
+              }
+            }
+          });
+          
+          if (signupError) {
+            throw signupError;
+          }
+          
+          // If user was created, sign in
+          if (userData && !userData.session) {
+            toast({
+              title: "Conta criada",
+              description: "Uma conta de demonstração foi criada. Por favor, faça login.",
+            });
+          }
+        }
+        
+        // Login with the account
+        await login(userEmail, userPassword);
+        
+        toast({
+          title: "Login realizado com sucesso",
+          description: "Você foi autenticado com sucesso como " + role,
+        });
+      } catch (err) {
+        setError('Erro ao fazer login. Por favor, tente novamente.');
+        console.error(err);
+      }
     } finally {
       setIsLoading(false);
+      setCreatingDemoAccount(false);
     }
   };
 
@@ -125,23 +169,23 @@ const Login = () => {
               <Button 
                 variant="outline"
                 onClick={() => handleDemoLogin('admin')}
-                disabled={isLoading}
+                disabled={isLoading || creatingDemoAccount}
               >
-                Admin
+                {creatingDemoAccount ? 'Configurando...' : 'Admin'}
               </Button>
               <Button 
                 variant="outline"
                 onClick={() => handleDemoLogin('restaurant')}
-                disabled={isLoading}
+                disabled={isLoading || creatingDemoAccount}
               >
-                Restaurante
+                {creatingDemoAccount ? 'Configurando...' : 'Restaurante'}
               </Button>
               <Button 
                 variant="outline" 
                 onClick={() => handleDemoLogin('customer')}
-                disabled={isLoading}
+                disabled={isLoading || creatingDemoAccount}
               >
-                Cliente
+                {creatingDemoAccount ? 'Configurando...' : 'Cliente'}
               </Button>
             </div>
           </CardFooter>

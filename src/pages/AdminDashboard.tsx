@@ -4,46 +4,87 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockDataService } from '@/data/mockData';
 import { Restaurant } from '@/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import * as supabaseService from '@/services/supabaseService';
+import RestaurantFormDialog from '@/components/RestaurantFormDialog';
 
 const AdminDashboard = () => {
-  const { user, hasRole } = useAuth();
+  const { profile, hasRole } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
 
   useEffect(() => {
     // Check if user is admin
-    if (user && !hasRole('admin')) {
+    if (profile && !hasRole('admin')) {
       navigate('/');
       return;
     }
 
-    const loadRestaurants = async () => {
-      try {
-        const data = await mockDataService.getRestaurants();
-        setRestaurants(data);
-      } catch (error) {
-        console.error('Failed to load restaurants:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadRestaurants();
-  }, [user, hasRole, navigate]);
+  }, [profile, hasRole, navigate]);
 
-  const handleAddRestaurant = () => {
-    // In a real app, this would open a form to add a new restaurant
-    alert('Em uma aplicação real, aqui abriria um formulário para adicionar novo restaurante');
+  const loadRestaurants = async () => {
+    try {
+      setLoading(true);
+      const data = await supabaseService.getAllRestaurants();
+      setRestaurants(data);
+    } catch (error) {
+      console.error('Failed to load restaurants:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os restaurantes',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleViewRestaurant = (restaurantId: string) => {
-    // In a real app, this would navigate to a restaurant management page
-    navigate(`/admin/restaurants/${restaurantId}`);
+  const handleAddRestaurant = () => {
+    setSelectedRestaurant(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEditRestaurant = (restaurant: Restaurant) => {
+    setSelectedRestaurant(restaurant);
+    setIsFormOpen(true);
+  };
+
+  const handleSaveRestaurant = async (restaurant: Restaurant) => {
+    try {
+      if (restaurant.id) {
+        // Update existing restaurant
+        const updatedRestaurant = await supabaseService.updateRestaurant(restaurant.id, restaurant);
+        setRestaurants(restaurants.map(r => (r.id === restaurant.id ? updatedRestaurant : r)));
+        
+        toast({
+          title: 'Restaurante atualizado',
+          description: 'O restaurante foi atualizado com sucesso',
+        });
+      } else {
+        // TODO: implement create restaurant functionality
+        toast({
+          title: 'Funcionalidade em desenvolvimento',
+          description: 'A criação de novos restaurantes será implementada em breve',
+        });
+      }
+      
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error('Error saving restaurant:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível salvar o restaurante',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (loading) {
@@ -73,7 +114,10 @@ const AdminDashboard = () => {
           <Card key={restaurant.id} className="overflow-hidden">
             <div 
               className="h-40 bg-center bg-cover" 
-              style={{ backgroundImage: `url(${restaurant.coverImage})` }}
+              style={{ 
+                backgroundImage: restaurant.coverImage ? `url(${restaurant.coverImage})` : 'none',
+                backgroundColor: !restaurant.coverImage ? '#f1f1f1' : 'transparent'
+              }}
             />
             <CardHeader className="pb-2">
               <CardTitle>{restaurant.name}</CardTitle>
@@ -92,7 +136,7 @@ const AdminDashboard = () => {
             <CardFooter>
               <Button 
                 variant="outline" 
-                onClick={() => handleViewRestaurant(restaurant.id)}
+                onClick={() => handleEditRestaurant(restaurant)}
                 className="w-full"
               >
                 Gerenciar
@@ -101,6 +145,15 @@ const AdminDashboard = () => {
           </Card>
         ))}
       </div>
+
+      {isFormOpen && (
+        <RestaurantFormDialog
+          open={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          restaurant={selectedRestaurant}
+          onSave={handleSaveRestaurant}
+        />
+      )}
     </Layout>
   );
 };

@@ -7,7 +7,7 @@ import { ShoppingCart, LogOut, User, Package } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isAuthenticated, logout, hasRole, isLoading } = useAuth();
+  const { profile, isAuthenticated, logout, hasRole, isLoading } = useAuth();
   const { totalItems } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -20,9 +20,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [isAuthenticated, isLoading, navigate, location.pathname]);
 
   // Handle logout
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
   };
 
   // Determine what to render in the navigation based on user role
@@ -81,7 +85,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           {renderNavigation()}
 
-          {isAuthenticated && (
+          {isAuthenticated && profile && (
             <div className="flex items-center space-x-4">
               {hasRole('customer') && (
                 <Button variant="ghost" size="sm" className="text-white relative" onClick={() => navigate('/cart')}>
@@ -96,7 +100,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
               <div className="flex items-center gap-2">
                 <User size={20} />
-                <span className="hidden md:inline">{user?.name}</span>
+                <span className="hidden md:inline">{profile.name}</span>
               </div>
 
               <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white">

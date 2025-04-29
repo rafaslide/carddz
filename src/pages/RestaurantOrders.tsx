@@ -4,7 +4,6 @@ import Layout from '@/components/Layout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockDataService } from '@/data/mockData';
 import { Order, OrderStatus } from '@/types';
 import { formatCurrency, formatDate, generateWhatsAppMessage } from '@/lib/utils';
 import OrderStatusBadge from '@/components/OrderStatusBadge';
@@ -17,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/components/ui/use-toast';
+import * as supabaseService from '@/services/supabaseService';
 
 const statusOptions: { label: string; value: OrderStatus }[] = [
   { label: 'Pendente', value: 'pending' },
@@ -28,7 +28,7 @@ const statusOptions: { label: string; value: OrderStatus }[] = [
 ];
 
 const RestaurantOrders = () => {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,18 +37,14 @@ const RestaurantOrders = () => {
 
   useEffect(() => {
     loadOrders();
-  }, [user]);
+  }, [profile]);
 
   const loadOrders = async () => {
-    if (!user || !user.restaurantId) return;
+    if (!profile || !profile.restaurantId) return;
 
     try {
       setLoading(true);
-      const restaurantOrders = await mockDataService.getOrders(
-        user.id, 
-        user.role, 
-        user.restaurantId
-      );
+      const restaurantOrders = await supabaseService.getOrdersByRestaurantId(profile.restaurantId);
       setOrders(restaurantOrders);
     } catch (err) {
       console.error('Error loading orders:', err);
@@ -61,7 +57,7 @@ const RestaurantOrders = () => {
   const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
     try {
       setUpdatingOrderId(orderId);
-      await mockDataService.updateOrderStatus(orderId, newStatus);
+      await supabaseService.updateOrderStatus(orderId, newStatus);
       
       // Update local orders array
       setOrders(prevOrders => 

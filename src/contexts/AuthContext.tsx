@@ -1,104 +1,171 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { User, UserRole } from '@/types';
+import { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+import { UserRole } from '@/types';
+import { useToast } from '@/components/ui/use-toast';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
+  profile: { id: string; name: string; email: string; role: UserRole; restaurantId?: string } | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  session: null,
+  profile: null,
   isAuthenticated: false,
   isLoading: true,
   login: async () => {},
-  logout: () => {},
+  logout: async () => {},
   hasRole: () => false,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<{ 
+    id: string; 
+    name: string; 
+    email: string; 
+    role: UserRole;
+    restaurantId?: string
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  // In a real app, this would check for an existing session
-  useEffect(() => {
-    const storedUser = localStorage.getItem('carddz_user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Failed to parse stored user:', error);
-        localStorage.removeItem('carddz_user');
+  // Fetch user profile
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return;
       }
+      
+      if (data) {
+        setProfile({
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          role: data.role as UserRole,
+          restaurantId: data.restaurant_id || undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
     }
-    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    // Set up auth state listener first
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      
+      if (currentSession?.user) {
+        // Defer Supabase calls with setTimeout to prevent deadlocks
+        setTimeout(() => {
+          fetchUserProfile(currentSession.user.id);
+        }, 0);
+      } else {
+        setProfile(null);
+      }
+    });
+
+    // Then check for existing session
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      
+      if (currentSession?.user) {
+        fetchUserProfile(currentSession.user.id);
+      }
+      
+      setIsLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
-    // In a real app, this would make an API call to authenticate
-    // For now, we'll simulate with some default users
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Demo users
-    if (email === 'admin@carddz.com' && password === 'password') {
-      const adminUser: User = {
-        id: '1',
-        name: 'Admin User',
-        email: 'admin@carddz.com',
-        role: 'admin'
-      };
-      setUser(adminUser);
-      localStorage.setItem('carddz_user', JSON.stringify(adminUser));
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        toast({
+          title: "Erro ao fazer login",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      }
+
+      toast({
+        title: "Login realizado com sucesso",
+        description: "Bem-vindo ao Carddz!",
+      });
+      
       return;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
     }
-    
-    if (email === 'restaurant@carddz.com' && password === 'password') {
-      const restaurantUser: User = {
-        id: '2',
-        name: 'Restaurant Owner',
-        email: 'restaurant@carddz.com',
-        role: 'restaurant',
-        restaurantId: 'rest1'
-      };
-      setUser(restaurantUser);
-      localStorage.setItem('carddz_user', JSON.stringify(restaurantUser));
-      return;
-    }
-    
-    if (email === 'customer@carddz.com' && password === 'password') {
-      const customerUser: User = {
-        id: '3',
-        name: 'Customer',
-        email: 'customer@carddz.com',
-        role: 'customer'
-      };
-      setUser(customerUser);
-      localStorage.setItem('carddz_user', JSON.stringify(customerUser));
-      return;
-    }
-    
-    throw new Error('Invalid email or password');
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('carddz_user');
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        toast({
+          title: "Erro ao sair",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      }
+
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      
+      toast({
+        title: "Logout realizado com sucesso",
+        description: "Até logo!",
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    }
   };
 
   const hasRole = (role: UserRole) => {
-    return user?.role === role;
+    return profile?.role === role;
   };
 
   return (
     <AuthContext.Provider value={{
       user,
-      isAuthenticated: !!user,
+      session,
+      profile,
+      isAuthenticated: !!user && !!profile,
       isLoading,
       login,
       logout,
