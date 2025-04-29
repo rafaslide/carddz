@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Loader2 } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -34,8 +35,8 @@ const Login = () => {
     
     try {
       await login(email, password);
-    } catch (err) {
-      setError('Email ou senha inválidos. Por favor, tente novamente.');
+    } catch (err: any) {
+      setError(err?.message || 'Email ou senha inválidos. Por favor, tente novamente.');
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -45,64 +46,64 @@ const Login = () => {
   const handleDemoLogin = async (role: string) => {
     setIsLoading(true);
     setCreatingDemoAccount(true);
+    setError('');
     
     try {
       let userEmail = '';
       let userPassword = 'password';
+      let userName = '';
       
       if (role === 'admin') {
         userEmail = 'admin@carddz.com';
+        userName = 'Admin User';
       } else if (role === 'restaurant') {
         userEmail = 'restaurant@carddz.com';
+        userName = 'Restaurant Owner';
       } else {
         userEmail = 'customer@carddz.com';
+        userName = 'Customer';
       }
       
-      // Reset password for demo accounts
+      // Primeiro, tente fazer login
       try {
-        // First, check if password needs to be updated
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: userEmail, 
-          password: userPassword
+        await login(userEmail, userPassword);
+        return;
+      } catch (loginErr) {
+        console.log('Usuário não encontrado, tentando criar...', loginErr);
+        
+        // Se falhar no login, tente criar o usuário
+        const { data: userData, error: signupError } = await supabase.auth.signUp({
+          email: userEmail,
+          password: userPassword,
+          options: {
+            data: {
+              name: userName,
+              role: role
+            }
+          }
         });
         
-        if (authError) {
-          // If login fails, try to create a new user
-          const { data: userData, error: signupError } = await supabase.auth.signUp({
-            email: userEmail,
-            password: userPassword,
-            options: {
-              data: {
-                name: role === 'admin' ? 'Admin User' : role === 'restaurant' ? 'Restaurant Owner' : 'Customer',
-                role: role
-              }
-            }
-          });
-          
-          if (signupError) {
-            throw signupError;
-          }
-          
-          // If user was created, sign in
-          if (userData && !userData.session) {
-            toast({
-              title: "Conta criada",
-              description: "Uma conta de demonstração foi criada. Por favor, faça login.",
-            });
-          }
+        if (signupError) {
+          console.error('Erro ao criar conta:', signupError);
+          throw signupError;
         }
         
-        // Login with the account
-        await login(userEmail, userPassword);
-        
-        toast({
-          title: "Login realizado com sucesso",
-          description: "Você foi autenticado com sucesso como " + role,
-        });
-      } catch (err) {
-        setError('Erro ao fazer login. Por favor, tente novamente.');
-        console.error(err);
+        // Se o usuário foi criado, faça login
+        if (userData) {
+          toast({
+            title: "Conta criada",
+            description: "Uma conta de demonstração foi criada. Por favor, aguarde enquanto fazemos login.",
+          });
+          
+          // Aguarde um momento para o trigger de criação de perfil executar
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          await login(userEmail, userPassword);
+        }
       }
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao fazer login. Por favor, tente novamente.');
+      console.error('Erro ao criar conta ou fazer login:', err);
     } finally {
       setIsLoading(false);
       setCreatingDemoAccount(false);
@@ -157,7 +158,10 @@ const Login = () => {
                 </div>
                 
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Entrando...' : 'Entrar'}
+                  {isLoading ? 
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Entrando...</> : 
+                    'Entrar'
+                  }
                 </Button>
               </div>
             </form>
@@ -171,21 +175,30 @@ const Login = () => {
                 onClick={() => handleDemoLogin('admin')}
                 disabled={isLoading || creatingDemoAccount}
               >
-                {creatingDemoAccount ? 'Configurando...' : 'Admin'}
+                {creatingDemoAccount ? 
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Configurando...</> : 
+                  'Admin'
+                }
               </Button>
               <Button 
                 variant="outline"
                 onClick={() => handleDemoLogin('restaurant')}
                 disabled={isLoading || creatingDemoAccount}
               >
-                {creatingDemoAccount ? 'Configurando...' : 'Restaurante'}
+                {creatingDemoAccount ? 
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Configurando...</> : 
+                  'Restaurante'
+                }
               </Button>
               <Button 
                 variant="outline" 
                 onClick={() => handleDemoLogin('customer')}
                 disabled={isLoading || creatingDemoAccount}
               >
-                {creatingDemoAccount ? 'Configurando...' : 'Cliente'}
+                {creatingDemoAccount ? 
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Configurando...</> : 
+                  'Cliente'
+                }
               </Button>
             </div>
           </CardFooter>
