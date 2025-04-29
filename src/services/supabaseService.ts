@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Product, 
@@ -7,8 +6,10 @@ import {
   CustomizationOption, 
   CustomizationItem,
   Order,
-  OrderStatus
+  OrderStatus,
+  CartItem
 } from '@/types';
+import { Database } from '@/integrations/supabase/types';
 
 // Restaurant functions
 export const getRestaurantById = async (restaurantId: string) => {
@@ -392,7 +393,7 @@ export const deleteCustomizationItem = async (itemId: string) => {
 };
 
 // Order functions
-export const getOrdersByRestaurantId = async (restaurantId: string) => {
+export const getOrdersByRestaurantId = async (restaurantId: string): Promise<Order[]> => {
   const { data: ordersData, error: ordersError } = await supabase
     .from('orders')
     .select(`
@@ -422,29 +423,47 @@ export const getOrdersByRestaurantId = async (restaurantId: string) => {
       .filter(item => item.order_id === order.id)
       .map(item => {
         const product = item.products || { 
-          id: item.product_id, 
+          id: item.product_id || '', 
           name: item.product_name,
-          price: item.unit_price 
+          price: item.unit_price,
+          description: '',
+          image: '',
+          categoryId: '',
+          restaurantId: '',
+          isAvailable: true,
         };
+        
+        // Convert customizations from JSON to the expected format
+        let formattedCustomizations: { optionId: string; selectedItems: string[] }[] = [];
+        
+        if (item.customizations) {
+          // Check if it's already in the correct format
+          if (Array.isArray(item.customizations)) {
+            formattedCustomizations = item.customizations.map((cust: any) => ({
+              optionId: cust.optionId || '',
+              selectedItems: Array.isArray(cust.selectedItems) ? cust.selectedItems : []
+            }));
+          }
+        }
         
         return {
           product: {
             id: product.id,
             name: product.name,
-            description: product.description || '',
-            price: product.price,
-            image: product.image || '',
-            categoryId: product.category_id,
-            restaurantId: product.restaurant_id,
-            isPromotion: product.is_promotion,
-            promotionPrice: product.promotion_price,
-            isAvailable: product.is_available,
+            description: typeof product.description === 'string' ? product.description : '',
+            price: typeof product.price === 'number' ? product.price : 0,
+            image: typeof product.image === 'string' ? product.image : '',
+            categoryId: product.category_id || '',
+            restaurantId: product.restaurant_id || '',
+            isPromotion: Boolean(product.is_promotion),
+            promotionPrice: product.promotion_price || 0,
+            isAvailable: product.is_available !== false,
             customizationOptions: [],
           },
           quantity: item.quantity,
-          customizations: item.customizations || [],
+          customizations: formattedCustomizations,
           totalPrice: item.total_price,
-        };
+        } as CartItem;
       });
 
     return {
@@ -455,10 +474,10 @@ export const getOrdersByRestaurantId = async (restaurantId: string) => {
       totalPrice: order.total_price,
       status: order.status as OrderStatus,
       createdAt: order.created_at,
-      notes: order.notes,
-      deliveryAddress: order.delivery_address,
+      notes: order.notes || undefined,
+      deliveryAddress: order.delivery_address || undefined,
       contactPhone: order.contact_phone,
-    };
+    } as Order;
   });
 };
 
