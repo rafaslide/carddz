@@ -37,7 +37,7 @@ const Login = () => {
       await login(email, password);
     } catch (err: any) {
       setError(err?.message || 'Email ou senha inválidos. Por favor, tente novamente.');
-      console.error(err);
+      console.error('Login error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -64,14 +64,31 @@ const Login = () => {
         userName = 'Customer';
       }
       
-      // Primeiro, tente fazer login
+      console.log(`Attempting login with demo account: ${userEmail}`);
+      
+      // First, try to login
       try {
-        await login(userEmail, userPassword);
+        console.log('Attempting login first...');
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: userEmail,
+          password: userPassword,
+        });
+        
+        if (error) {
+          console.log('Login failed, attempting signup:', error.message);
+          throw error;
+        }
+        
+        console.log('Login successful:', data);
+        toast({
+          title: "Login com sucesso",
+          description: `Bem-vindo, ${userName}!`,
+        });
         return;
       } catch (loginErr) {
-        console.log('Usuário não encontrado, tentando criar...', loginErr);
+        console.log('Login failed, creating account...');
         
-        // Se falhar no login, tente criar o usuário
+        // If login fails, create the user
         const { data: userData, error: signupError } = await supabase.auth.signUp({
           email: userEmail,
           password: userPassword,
@@ -84,26 +101,32 @@ const Login = () => {
         });
         
         if (signupError) {
-          console.error('Erro ao criar conta:', signupError);
+          console.error('Error creating account:', signupError);
           throw signupError;
         }
         
-        // Se o usuário foi criado, faça login
-        if (userData) {
-          toast({
-            title: "Conta criada",
-            description: "Uma conta de demonstração foi criada. Por favor, aguarde enquanto fazemos login.",
-          });
-          
-          // Aguarde um momento para o trigger de criação de perfil executar
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          await login(userEmail, userPassword);
+        console.log('Account created successfully:', userData);
+        
+        // After account creation, try logging in
+        const { data: loginData, error: secondLoginError } = await supabase.auth.signInWithPassword({
+          email: userEmail,
+          password: userPassword,
+        });
+        
+        if (secondLoginError) {
+          console.error('Error logging in after account creation:', secondLoginError);
+          throw secondLoginError;
         }
+        
+        console.log('Login successful after account creation:', loginData);
+        toast({
+          title: "Conta criada e login realizado",
+          description: `Bem-vindo, ${userName}!`,
+        });
       }
     } catch (err: any) {
+      console.error('Error in demo login process:', err);
       setError(err?.message || 'Erro ao fazer login. Por favor, tente novamente.');
-      console.error('Erro ao criar conta ou fazer login:', err);
     } finally {
       setIsLoading(false);
       setCreatingDemoAccount(false);

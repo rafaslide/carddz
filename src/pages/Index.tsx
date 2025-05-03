@@ -9,7 +9,12 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log('Index page - Auth state:', { isAuthenticated, isLoading, role: profile?.role });
+    console.log('Index page - Auth state:', { 
+      isAuthenticated, 
+      isLoading, 
+      role: profile?.role,
+      user: profile?.id
+    });
     
     if (isLoading) return;
     
@@ -33,7 +38,7 @@ const Index = () => {
       console.log('No specific role detected, redirecting to root');
       navigate('/');
     }
-  }, [isAuthenticated, hasRole, navigate, isLoading, profile?.role]);
+  }, [isAuthenticated, hasRole, navigate, isLoading, profile?.role, profile?.id]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

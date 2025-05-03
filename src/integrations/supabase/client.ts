@@ -16,3 +16,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage
   },
 });
+
+// Add a debug helper to track auth state
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Auth state changed:', event, session ? 'User authenticated' : 'User signed out');
+});
