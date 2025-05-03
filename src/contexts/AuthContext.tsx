@@ -66,6 +66,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       } else {
         console.log('No profile data found');
+        // Try to check if the profile is still being created
+        setTimeout(() => {
+          fetchUserProfile(userId);
+        }, 2000);
       }
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
@@ -88,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Use setTimeout to avoid potential deadlocks
         setTimeout(() => {
           fetchUserProfile(currentSession.user.id);
-        }, 0);
+        }, 1000); // Allow some time for DB triggers to complete
       } else {
         setProfile(null);
       }

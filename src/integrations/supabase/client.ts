@@ -13,11 +13,12 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    storage: localStorage
+    storage: localStorage,
+    debug: true  // Enable debug mode for authentication
   },
 });
 
 // Add a debug helper to track auth state
 supabase.auth.onAuthStateChange((event, session) => {
-  console.log('Auth state changed:', event, session ? 'User authenticated' : 'User signed out');
+  console.log('Auth state changed:', event, session ? 'User authenticated' : 'User signed out', session);
 });
