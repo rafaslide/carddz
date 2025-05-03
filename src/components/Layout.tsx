@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -11,29 +11,60 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { totalItems } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Estado para rastrear se estamos em modo demonstração
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  // Estado para rastrear o papel simulado em demonstração
+  const [demoRole, setDemoRole] = useState<string | null>(null);
 
-  // Redirect to login if not authenticated
+  // Detectar se este é um acesso demonstrativo
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !location.pathname.startsWith('/login')) {
+    const isDemoAccess = location.pathname.includes('/admin/') || 
+                         location.pathname.includes('/restaurant/');
+    
+    if (isDemoAccess && !isAuthenticated) {
+      setIsDemoMode(true);
+      if (location.pathname.includes('/admin/')) {
+        setDemoRole('admin');
+      } else if (location.pathname.includes('/restaurant/')) {
+        setDemoRole('restaurant');
+      } else {
+        setDemoRole('customer');
+      }
+    }
+  }, [location.pathname, isAuthenticated]);
+
+  // Redirecionamento para login modificado para permitir demonstração
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !location.pathname.startsWith('/login') && !isDemoMode) {
       navigate('/login');
     }
-  }, [isAuthenticated, isLoading, navigate, location.pathname]);
+  }, [isAuthenticated, isLoading, navigate, location.pathname, isDemoMode]);
 
   // Handle logout
   const handleLogout = async () => {
-    try {
-      await logout();
+    if (isDemoMode) {
+      // Se estamos em modo demo, apenas voltar para a tela de login
+      setIsDemoMode(false);
+      setDemoRole(null);
       navigate('/login');
-    } catch (error) {
-      console.error('Error logging out:', error);
+    } else {
+      try {
+        await logout();
+        navigate('/login');
+      } catch (error) {
+        console.error('Error logging out:', error);
+      }
     }
   };
 
-  // Determine what to render in the navigation based on user role
+  // Determinar o que mostrar na navegação com base no papel do usuário
   const renderNavigation = () => {
-    if (!isAuthenticated) return null;
+    if (!isAuthenticated && !isDemoMode) return null;
 
-    if (hasRole('admin')) {
+    const currentRole = isDemoMode ? demoRole : profile?.role;
+
+    if (currentRole === 'admin' || hasRole('admin')) {
       return (
         <div className="flex space-x-4">
           <Link to="/admin/restaurants" className="text-white hover:text-gray-200">
@@ -43,7 +74,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       );
     }
 
-    if (hasRole('restaurant')) {
+    if (currentRole === 'restaurant' || hasRole('restaurant')) {
       return (
         <div className="flex space-x-4">
           <Link to="/restaurant/products" className="text-white hover:text-gray-200">
@@ -56,7 +87,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       );
     }
 
-    if (hasRole('customer')) {
+    if (currentRole === 'customer' || hasRole('customer')) {
       return (
         <div className="flex space-x-4">
           <Link to="/" className="text-white hover:text-gray-200">
@@ -72,6 +103,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return null;
   };
 
+  // Determinar o nome do usuário a exibir
+  const getUserName = () => {
+    if (isDemoMode) {
+      if (demoRole === 'admin') return 'Admin (Demo)';
+      if (demoRole === 'restaurant') return 'Restaurant (Demo)';
+      return 'Customer (Demo)';
+    }
+    
+    return profile?.name || 'Usuário';
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
@@ -85,9 +127,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           {renderNavigation()}
 
-          {isAuthenticated && profile && (
+          {(isAuthenticated || isDemoMode) && (
             <div className="flex items-center space-x-4">
-              {hasRole('customer') && (
+              {(hasRole('customer') || demoRole === 'customer') && (
                 <Button variant="ghost" size="sm" className="text-white relative" onClick={() => navigate('/cart')}>
                   <ShoppingCart size={20} />
                   {totalItems > 0 && (
@@ -100,7 +142,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
               <div className="flex items-center gap-2">
                 <User size={20} />
-                <span className="hidden md:inline">{profile.name}</span>
+                <span className="hidden md:inline">{getUserName()}</span>
               </div>
 
               <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white">

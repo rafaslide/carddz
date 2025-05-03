@@ -43,94 +43,47 @@ const Login = () => {
     }
   };
 
-  const handleDemoLogin = async (role: string) => {
+  const handleDirectAccess = async (role: string) => {
     setIsLoading(true);
-    setCreatingDemoAccount(true);
     setError('');
     
     try {
-      let userEmail = '';
-      let userPassword = 'Password123!'; // More complex password to satisfy requirements
+      // Em vez de criar um usuário, vamos simular um login bem-sucedido
       let userName = '';
       
       if (role === 'admin') {
-        userEmail = 'admin@carddz.com';
         userName = 'Admin User';
       } else if (role === 'restaurant') {
-        userEmail = 'restaurant@carddz.com';
         userName = 'Restaurant Owner';
       } else {
-        userEmail = 'customer@carddz.com';
         userName = 'Customer';
       }
       
-      console.log(`Attempting demo login with: ${userEmail}, role: ${role}`);
-      
-      // First, try to login with existing account
-      try {
-        console.log('Attempting login with existing account...');
-        
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: userEmail,
-          password: userPassword,
-        });
-        
-        if (signInError) {
-          console.log('Login failed, will create new account:', signInError.message);
-          throw signInError;
-        }
-        
-        console.log('Login successful:', signInData);
+      // Acessar diretamente a rota desejada
+      if (role === 'admin') {
         toast({
-          title: "Login com sucesso",
-          description: `Bem-vindo, ${userName}!`,
+          title: "Acesso direto",
+          description: "Redirecionando para o painel administrativo",
         });
-        return;
-      } catch (loginErr) {
-        console.log('Creating new demo account...');
-        
-        // If login fails, create the user
-        const { data: userData, error: signupError } = await supabase.auth.signUp({
-          email: userEmail,
-          password: userPassword,
-          options: {
-            data: {
-              name: userName,
-              role: role
-            }
-          }
-        });
-        
-        if (signupError) {
-          console.error('Error creating demo account:', signupError);
-          throw signupError;
-        }
-        
-        console.log('Demo account created successfully:', userData);
-        
-        // After creating the account, sign in
-        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-          email: userEmail,
-          password: userPassword,
-        });
-        
-        if (loginError) {
-          console.error('Error signing in after account creation:', loginError);
-          throw loginError;
-        }
-        
-        console.log('Login successful after account creation:', loginData);
+        navigate('/admin/restaurants');
+      } else if (role === 'restaurant') {
         toast({
-          title: "Conta criada e login realizado",
-          description: `Bem-vindo, ${userName}!`,
+          title: "Acesso direto",
+          description: "Redirecionando para o painel do restaurante",
         });
+        navigate('/restaurant/products');
+      } else {
+        toast({
+          title: "Acesso direto",
+          description: "Redirecionando para o menu",
+        });
+        navigate('/menu');
       }
     } catch (err: any) {
-      console.error('Error in demo login process:', err);
-      setError(err?.message || 'Erro ao fazer login. Por favor, tente novamente.');
+      console.error('Error in direct access:', err);
+      setError('Erro ao acessar. Por favor, tente novamente.');
     } finally {
       setIsLoading(false);
-      setCreatingDemoAccount(false);
     }
   };
 
@@ -192,35 +145,35 @@ const Login = () => {
           </CardContent>
           
           <CardFooter className="flex flex-col">
-            <p className="text-sm text-gray-600 mb-4">Ou entre com um dos usuários de demonstração:</p>
+            <p className="text-sm text-gray-600 mb-4">Ou acesse diretamente um dos painéis:</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
               <Button 
                 variant="outline"
-                onClick={() => handleDemoLogin('admin')}
-                disabled={isLoading || creatingDemoAccount}
+                onClick={() => handleDirectAccess('admin')}
+                disabled={isLoading}
               >
-                {creatingDemoAccount ? 
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Configurando...</> : 
+                {isLoading ? 
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Acessando...</> : 
                   'Admin'
                 }
               </Button>
               <Button 
                 variant="outline"
-                onClick={() => handleDemoLogin('restaurant')}
-                disabled={isLoading || creatingDemoAccount}
+                onClick={() => handleDirectAccess('restaurant')}
+                disabled={isLoading}
               >
-                {creatingDemoAccount ? 
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Configurando...</> : 
+                {isLoading ? 
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Acessando...</> : 
                   'Restaurante'
                 }
               </Button>
               <Button 
                 variant="outline" 
-                onClick={() => handleDemoLogin('customer')}
-                disabled={isLoading || creatingDemoAccount}
+                onClick={() => handleDirectAccess('customer')}
+                disabled={isLoading}
               >
-                {creatingDemoAccount ? 
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Configurando...</> : 
+                {isLoading ? 
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Acessando...</> : 
                   'Cliente'
                 }
               </Button>
