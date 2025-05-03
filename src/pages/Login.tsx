@@ -50,7 +50,7 @@ const Login = () => {
     
     try {
       let userEmail = '';
-      let userPassword = 'password';
+      let userPassword = 'password123';
       let userName = '';
       
       if (role === 'admin') {
@@ -64,7 +64,7 @@ const Login = () => {
         userName = 'Customer';
       }
       
-      console.log(`Attempting login with demo account: ${userEmail}`);
+      console.log(`Attempting demo login with: ${userEmail}, role: ${role}`);
       
       // First, try to login
       try {
@@ -75,7 +75,7 @@ const Login = () => {
         });
         
         if (error) {
-          console.log('Login failed, attempting signup:', error.message);
+          console.log('Login failed, will attempt signup:', error.message);
           throw error;
         }
         

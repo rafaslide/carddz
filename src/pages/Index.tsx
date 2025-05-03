@@ -33,7 +33,7 @@ const Index = () => {
       navigate('/restaurant/products');
     } else if (hasRole('customer')) {
       console.log('Customer role detected, redirecting to menu');
-      navigate('/');
+      navigate('/menu');
     } else {
       console.log('No specific role detected, redirecting to root');
       navigate('/');
