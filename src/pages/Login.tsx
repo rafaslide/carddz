@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 
 const Login = () => {
@@ -16,7 +15,6 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [creatingDemoAccount, setCreatingDemoAccount] = useState(false);
   
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -48,17 +46,6 @@ const Login = () => {
     setError('');
     
     try {
-      // Em vez de criar um usuário, vamos simular um login bem-sucedido
-      let userName = '';
-      
-      if (role === 'admin') {
-        userName = 'Admin User';
-      } else if (role === 'restaurant') {
-        userName = 'Restaurant Owner';
-      } else {
-        userName = 'Customer';
-      }
-      
       // Acessar diretamente a rota desejada
       if (role === 'admin') {
         toast({
@@ -144,39 +131,42 @@ const Login = () => {
             </form>
           </CardContent>
           
-          <CardFooter className="flex flex-col">
-            <p className="text-sm text-gray-600 mb-4">Ou acesse diretamente um dos painéis:</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
-              <Button 
-                variant="outline"
-                onClick={() => handleDirectAccess('admin')}
-                disabled={isLoading}
-              >
-                {isLoading ? 
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Acessando...</> : 
-                  'Admin'
-                }
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => handleDirectAccess('restaurant')}
-                disabled={isLoading}
-              >
-                {isLoading ? 
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Acessando...</> : 
-                  'Restaurante'
-                }
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => handleDirectAccess('customer')}
-                disabled={isLoading}
-              >
-                {isLoading ? 
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Acessando...</> : 
-                  'Cliente'
-                }
-              </Button>
+          <CardFooter className="flex flex-col gap-4">
+            <p className="text-sm text-gray-600">
+              Não tem uma conta?{' '}
+              <Link to="/register" className="text-brand hover:underline">
+                Registrar-se
+              </Link>
+            </p>
+            
+            <div className="w-full border-t pt-4">
+              <p className="text-sm text-gray-600 mb-4 text-center">Ou acesse diretamente um dos painéis:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
+                <Button 
+                  variant="outline"
+                  onClick={() => handleDirectAccess('admin')}
+                  disabled={isLoading}
+                  size="sm"
+                >
+                  Admin
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => handleDirectAccess('restaurant')}
+                  disabled={isLoading}
+                  size="sm"
+                >
+                  Restaurante
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleDirectAccess('customer')}
+                  disabled={isLoading}
+                  size="sm"
+                >
+                  Cliente
+                </Button>
+              </div>
             </div>
           </CardFooter>
         </Card>
