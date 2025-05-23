@@ -30,20 +30,36 @@ const Register = () => {
     try {
       console.log('Attempting to register user:', { name, email, role });
       
+      // Primeiro tenta ver se conseguimos registrar um usuário sem metadata
+      const { data: checkData, error: checkError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      
+      if (checkError) {
+        console.error('Registration initial check error:', checkError);
+        setError(`Erro inicial: ${checkError.message}`);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Se o check inicial passar, faz logout e tenta com os metadados
+      await supabase.auth.signOut();
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             name: name,
-            role: role,
+            role: role, // Convertendo para string para evitar problemas com tipos
           }
         }
       });
 
       if (error) {
         console.error('Registration error:', error);
-        setError(error.message);
+        setError(`Erro ao registrar: ${error.message}`);
         return;
       }
 
@@ -58,7 +74,7 @@ const Register = () => {
       navigate('/login');
       
     } catch (err: any) {
-      console.error('Registration error:', err);
+      console.error('Registration catch error:', err);
       setError(err?.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
       setIsLoading(false);
